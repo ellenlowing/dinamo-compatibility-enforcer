@@ -20,8 +20,6 @@ def openCorner(node):
 
 	index = node.index
 	path = node.parent
-	nodeA = GSNode()
-	nodeB = GSNode()
 
 	# get 2 segments: one that joins the prev node, and one that joins the next
 	segments = findSegmentsContainingNode(allsegments, node)
@@ -59,31 +57,58 @@ def openCorner(node):
 
 		else:
 			newNode.type = GSCURVE if i == 0 else GSLINE
-			t = 1.1 if i == 0 else -0.1
+			t = 1.2 if i == 0 else -0.2
 			p0 = segment[0]
 			p1 = segment[1]
 			p2 = segment[2]
 			p3 = segment[3]
+			p1idx = index-2 if i == 0 else index+1
+			p2idx = index-1 if i == 0 else index+2
 
-			# update p3 position
+			# update p3 position if t = 1.2, else update p0
 			nx = math.pow(1-t, 3)*p0.x + 3*math.pow(1-t,2)*t*p1.x + 3*(1-t)*math.pow(t,2)*p2.x + math.pow(t,3)*p3.x
 			ny = math.pow(1-t, 3)*p0.y + 3*math.pow(1-t,2)*t*p1.y + 3*(1-t)*math.pow(t,2)*p2.y + math.pow(t,3)*p3.y
+			if i == 0:
+				p3 = NSMakePoint(nx,ny)
+			else:
+				p0 = NSMakePoint(nx,ny)
 
-			# TODO: update p1, p2 position with new p3
+			# update p1, p2 position with new p3,p0 through interpolation
+			b25 = getBezierCoord(0.25, segment)
+			b75 = getBezierCoord(0.75, segment)
+			t25 = lerp(0.25, 0, t, 0, 1) if i == 0 else lerp(0.25, t, 1, 0, 1)
+			t75 = lerp(0.75, 0, t, 0, 1) if i == 0 else lerp(0.75, t, 1, 0, 1)
+
+			# components used to solve cubic bezier equations
+			p0x_25 = math.pow(1-t25,3)*p0.x
+			p0y_25 = math.pow(1-t25,3)*p0.y
+			p0x_75 = math.pow(1-t75,3)*p0.x
+			p0y_75 = math.pow(1-t75,3)*p0.y
+			p3x_25 = math.pow(t25,3)*p3.x
+			p3y_25 = math.pow(t25,3)*p3.y
+			p3x_75 = math.pow(t75,3)*p3.x
+			p3y_75 = math.pow(t75,3)*p3.y
+			p2x = ((b75.x - p0x_75 - p3x_75) / (3 * (1-t75) * math.pow(t75,2)) - ( (1-t75)*(b25.x - p0x_25 - p3x_25) / (3 * t25 * math.pow(1-t25,2) * t75) )) / (1 - t25*(1-t75)/(t75*(1-t25)))
+			p2y = ((b75.y - p0y_75 - p3y_75) / (3 * (1-t75) * math.pow(t75,2)) - ( (1-t75)*(b25.y - p0y_25 - p3y_25) / (3 * t25 * math.pow(1-t25,2) * t75) )) / (1 - t25*(1-t75)/(t75*(1-t25)))
+			p1x = (b25.x - p0x_25 - p3x_25 - 3*(1-t25)*math.pow(t25,2)*p2x) / (3 * math.pow(1-t25,2) * t25)
+			p1y = (b25.y - p0y_25 - p3y_25 - 3*(1-t25)*math.pow(t25,2)*p2y) / (3 * math.pow(1-t25,2) * t25)
+
+			path.nodes[p1idx].position = NSMakePoint(p1x,p1y)
+			path.nodes[p2idx].position = NSMakePoint(p2x,p2y)
 
 
 
 		newNode.position = NSMakePoint(nx, ny)
-		if i == 0:
-			nodeA = newNode
-		else:
-			nodeB = newNode
+		path.insertNode_atIndex_(newNode, index+i)
 
-
-	path.insertNode_atIndex_(nodeA, index)
-	path.insertNode_atIndex_(nodeB, index)
-
-
+def getBezierCoord(t, segment):
+	p0 = segment[0]
+	p1 = segment[1]
+	p2 = segment[2]
+	p3 = segment[3]
+	x = math.pow(1-t, 3)*p0.x + 3*math.pow(1-t,2)*t*p1.x + 3*(1-t)*math.pow(t,2)*p2.x + math.pow(t,3)*p3.x
+	y = math.pow(1-t, 3)*p0.y + 3*math.pow(1-t,2)*t*p1.y + 3*(1-t)*math.pow(t,2)*p2.y + math.pow(t,3)*p3.y
+	return NSMakePoint(x,y)
 
 # Detect if node is a corner
 def isCorner(node):

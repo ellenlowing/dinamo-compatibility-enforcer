@@ -3,7 +3,7 @@
 
 for selectedNode in Layer.selection:
 	if isCorner(selectedNode):
-		print selectedNode
+		print selectedNode, selectedNode.index
 		openCorner(selectedNode)
 
 glyph = Font.selectedLayers[0].parent
@@ -114,6 +114,10 @@ def getBezierCoord(t, segment):
 def isCorner(node):
 	return not node.smooth and node.type is not "offcurve"
 
+# Check if node is last in path
+def isLastNode(node):
+	path = node.parent
+	return node.index == len(path.nodes)-1
 
 # Find segments containing given node
 def findSegmentsContainingNode(pathsegments, node):
@@ -122,4 +126,6 @@ def findSegmentsContainingNode(pathsegments, node):
 		for point in segment:
 			if point.x == node.x and point.y == node.y:
 				segments.append(segment)
+	if isLastNode(node):
+		segments.reverse()
 	return segments

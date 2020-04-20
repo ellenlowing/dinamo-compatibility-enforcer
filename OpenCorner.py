@@ -1,14 +1,90 @@
 #MenuTitle: OpenCorner
 # -*- coding: utf-8 -*-
 
-for selectedNode in Layer.selection:
-	if isCorner(selectedNode):
-		print selectedNode, selectedNode.index
-		openCorner(selectedNode)
+import math
 
 glyph = Font.selectedLayers[0].parent
 layer = glyph.layers[0]
 allsegments = layer.paths[0].segments
+
+# for path in layer.paths:
+# 	isPrevCornerOpened = False
+# 	for node in path.nodes:
+# 		if isCorner(node):
+# 			if isPrevCornerOpened:
+# 				print "this is the 2nd node in open corner, skipping"
+# 				isPrevCornerOpened = False
+# 				continue
+#
+# 			if isCornerOpened(node):
+# 				isPrevCornerOpened = True
+# 				print "open corner found!"
+# 			else:
+# 				openCorner(node)
+# 				print "opening new corner"
+
+isPrevCornerOpened = False
+for selectedNode in Layer.selection:
+	if isCorner(selectedNode):
+		if isPrevCornerOpened:
+			print "this is the 2nd node in open corner, skipping"
+			isPrevCornerOpened = False
+			continue
+
+		if isCornerOpened(selectedNode):
+			isPrevCornerOpened = True
+			print "open corner found!"
+		else:
+			openCorner(selectedNode)
+			print "opening new corner..."
+
+def isHorizontal(p0, p1):
+	return p0.y-p1.y==0
+
+def isVertical(p0, p1):
+	return p0.x-p1.x==0
+
+def intersectsBetweenHorizontalAndVertical(seg0, seg1):
+	horizontal = seg0 if isHorizontal(seg0[0],seg0[1]) else seg1
+	vertical = seg1 if horizontal == seg0 else seg0
+	print horizontal[0], horizontal[1]
+	xidx = 1 if horizontal[1].x > horizontal[0].x else 0
+	yidx = 1 if vertical[1].y > vertical[0].y else 0
+	return horizontal[1-xidx].x <= vertical[0].x <= horizontal[xidx].x and vertical[1-yidx].y <= horizontal[0].y <= vertical[yidx].y
+
+
+# TODO: if open corner is found next node in paths should be skipped
+def isCornerOpened(node):
+	if isCorner(node) and isCorner(node.nextNode):
+		seg0 = findSegmentsContainingNode(allsegments, node)[0]
+		seg1 = findSegmentsContainingNode(allsegments, node.nextNode)[1]
+		print seg0, seg1
+
+		if len(seg0) is 2 and len(seg1) is 2:
+			# 2 straight lines
+			p0 = seg0[0]
+			p1 = seg0[1]
+			p2 = seg1[0]
+			p3 = seg1[1]
+			if (isHorizontal(p0,p1) and isHorizontal(p2,p3)) or (isVertical(p0,p1) and isVertical(p2,p3)):
+				# no intersection for parallel segments
+				return False
+
+			elif (isHorizontal(p0,p1) and isVertical(p2,p3)) or (isVertical(p0,p1) and isHorizontal(p2,p3)):
+				return intersectsBetweenHorizontalAndVertical(seg0, seg1)
+
+			else:
+				# slanted straight lines
+				print "slanted lines"
+
+		else:
+			# find intersection between line and bezier curve
+			print "find intersection between line and bezier curve"
+			
+# 			# calculate intersection between Bezier and straight
+# 		ix = ((p1.x*p0.y-p0.x*p1.y)*(p3.x-p2.x) - (p3.x*p2.y-p2.x*p3.y)*(p1.x-p0.x)) / ((p1.x-p0.x)*(p3.y-p2.y) - (p3.x-p2.x)*(p1.y-p0.y))
+# 		iy = (p1.y-p0.y)*(ix-p0.x)/(p1.x-p0.x)+p0.y
+# 		print ix,iy
 
 def openCorner(node):
 	# TODO: need to check if node has already been opened,

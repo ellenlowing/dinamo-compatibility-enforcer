@@ -23,21 +23,6 @@ allsegments = layer.paths[0].segments
 # 				openCorner(node)
 # 				print "opening new corner"
 
-isPrevCornerOpened = False
-for selectedNode in Layer.selection:
-	if isCorner(selectedNode):
-		if isPrevCornerOpened:
-			print "this is the 2nd node in open corner, skipping"
-			isPrevCornerOpened = False
-			continue
-
-		if isCornerOpened(selectedNode):
-			isPrevCornerOpened = True
-			print "open corner found!"
-		else:
-			openCorner(selectedNode)
-			print "opening new corner..."
-
 def isHorizontal(p0, p1):
 	return p0.y-p1.y==0
 
@@ -58,7 +43,6 @@ def isCornerOpened(node):
 	if isCorner(node) and isCorner(node.nextNode):
 		seg0 = findSegmentsContainingNode(allsegments, node)[0]
 		seg1 = findSegmentsContainingNode(allsegments, node.nextNode)[1]
-		print seg0, seg1
 
 		if len(seg0) is 2 and len(seg1) is 2:
 			# 2 straight lines
@@ -74,17 +58,24 @@ def isCornerOpened(node):
 				return intersectsBetweenHorizontalAndVertical(seg0, seg1)
 
 			else:
-				# slanted straight lines
+				# TODO: slanted straight lines
 				print "slanted lines"
+# 				ix = ((p1.x*p0.y-p0.x*p1.y)*(p3.x-p2.x) - (p3.x*p2.y-p2.x*p3.y)*(p1.x-p0.x)) / ((p1.x-p0.x)*(p3.y-p2.y) - (p3.x-p2.x)*(p1.y-p0.y))
+#  				iy = (p1.y-p0.y)*(ix-p0.x)/(p1.x-p0.x)+p0.y
+# 				print ix,iy
 
 		else:
-			# find intersection between line and bezier curve
-			print "find intersection between line and bezier curve"
-			
-# 			# calculate intersection between Bezier and straight
-# 		ix = ((p1.x*p0.y-p0.x*p1.y)*(p3.x-p2.x) - (p3.x*p2.y-p2.x*p3.y)*(p1.x-p0.x)) / ((p1.x-p0.x)*(p3.y-p2.y) - (p3.x-p2.x)*(p1.y-p0.y))
-# 		iy = (p1.y-p0.y)*(ix-p0.x)/(p1.x-p0.x)+p0.y
-# 		print ix,iy
+			# TODO: find intersection between line and bezier curve
+			curve = seg0 if len(seg0) == 4 else seg1
+			line = seg0 if len(seg0) == 2 else seg1
+			px = [curve[0].x, curve[1].x, curve[2].x, curve[3].x]
+			py = [curve[0].y, curve[1].y, curve[2].y, curve[3].y]
+			lx = [line[0].x, line[1].x]
+			ly = [line[0].y, line[1].y]
+			intersections = computeIntersections(px,py,lx,ly)
+			print intersections
+			return True
+
 
 def openCorner(node):
 	# TODO: need to check if node has already been opened,
@@ -172,10 +163,115 @@ def openCorner(node):
 			path.nodes[p1idx].position = NSMakePoint(p1x,p1y)
 			path.nodes[p2idx].position = NSMakePoint(p2x,p2y)
 
-
-
 		newNode.position = NSMakePoint(nx, ny)
 		path.insertNode_atIndex_(newNode, index+i)
+
+def computeIntersections(px, py, lx, ly):
+	X = [-1,-1]
+	A = ly[1]-ly[0]
+	B = lx[0]-lx[1]
+	C = lx[0]*(ly[0]-ly[1])+ly[0]*(lx[1]-lx[0])
+
+	bx = bezierCoeffs(px[0], px[1], px[2], px[3])
+	by = bezierCoeffs(py[0], py[1], py[2], py[3])
+
+	P = []
+	P.append(A*bx[0]+B*by[0])
+	P.append(A*bx[1]+B*by[1])
+	P.append(A*bx[2]+B*by[2])
+	P.append(A*bx[3]+B*by[3] + C)
+
+	r = cubicRoots(P)
+	intersections = []
+
+	for i in range(0,3):
+		t = r[i]
+		X[0] = bx[0]*t*t*t + bx[1]*t*t + bx[2]*t + bx[3]
+		X[1] = by[0]*t*t*t + by[1]*t*t + by[2]*t + by[3]
+
+		s = 0
+		if lx[1]-lx[0] != 0:
+			s = (X[0]-lx[0])/(lx[1]-lx[0])
+		else:
+			s = (X[1]-ly[0])/(ly[1]-ly[0])
+
+		if t<0 or t>1.0 or s<0 or s>1.0:
+			X[0] = -100
+			X[1] = -100
+
+		intersection = NSMakePoint(X[0],X[1])
+		intersections.append(intersection)
+
+	return intersections
+
+
+def bezierCoeffs(p0, p1, p2, p3):
+	Z = []
+	Z.append(-p0 + 3*p1 - 3*p2 + p3)
+	Z.append(3*p0 - 6*p1 + 3*p2)
+	Z.append(-3*p0 + 3*p1)
+	Z.append(p0)
+	return Z
+
+def sgn(x):
+	return -1 if x < 0 else 1
+
+def cubicRoots(P):
+	a = P[0]
+	b = P[1]
+	c = P[2]
+	d = P[3]
+	A = b/a
+	B = c/a
+	C = d/a
+	Q = (3*B - math.pow(A,2))/9
+	R = (9*A*B - 27*C - 2*math.pow(A,3))/54
+	D = math.pow(Q,3) + math.pow(R,2)
+	t=[-1,-1,-1]
+
+	if D >= 0:
+		S = sgn(R + math.pow(D,0.5))*math.pow(math.abs(R + math.pow(D,0.5)), 1/3)
+		T = sgn(R - math.pow(D,0.5))*math.pow(math.abs(R - math.pow(D,0.5)), 1/3)
+
+		t[0]=(-A/3 + (S+T))
+		t[1]=(-A/3 - (S+T)/2)
+		t[2]=(-A/3 - (S+T)/2)
+		im = math.abs(math.pow(3*(S-T)/2,0.5))
+
+		if im != 0:
+			t[1]=-1
+			t[2]=-1
+	else:
+		th = math.acos(R/math.pow(-math.pow(Q,3),0.5))
+		t[0] = 2*math.pow(-Q,0.5)*math.cos(th/3)-A/3
+		t[1] = 2*math.pow(-Q,0.5)*math.cos((th+2*math.pi)/3)-A/3
+		t[2] = 2*math.pow(-Q,0.5)*math.cos((th+4*math.pi)/3)-A/3
+		im = 0.0
+
+	for i in range(0,3):
+		if t[i] < 0 or t[i] > 1.0:
+			t[i] = -1
+
+	t = sortSpecial(t)
+	return t
+
+def sortSpecial(a):
+	flip=None
+	temp=None
+
+	while True:
+		flip=False
+		for i in range(0,len(a)-1):
+			if (a[i+1]>=0 and a[i]>a[i+1]) or (a[i]<0 and a[i+1]>=0):
+				flip = True
+				temp = a[i]
+				a[i] = a[i+1]
+				a[i+1] = temp
+
+		if not flip:
+			break
+
+	return a
 
 def getBezierCoord(t, segment):
 	p0 = segment[0]
@@ -205,3 +301,18 @@ def findSegmentsContainingNode(pathsegments, node):
 	if isLastNode(node):
 		segments.reverse()
 	return segments
+
+isPrevCornerOpened = False
+for selectedNode in Layer.selection:
+	if isCorner(selectedNode):
+		if isPrevCornerOpened:
+			print "this is the 2nd node in open corner, skipping"
+			isPrevCornerOpened = False
+			continue
+
+		if isCornerOpened(selectedNode):
+			isPrevCornerOpened = True
+			print "open corner found!"
+		else:
+			openCorner(selectedNode)
+			print "opening new corner..."

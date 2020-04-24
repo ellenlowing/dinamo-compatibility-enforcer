@@ -23,6 +23,9 @@ allsegments = layer.paths[0].segments
 # 				openCorner(node)
 # 				print "opening new corner"
 
+def lerp(x, inMin, inMax, outMin, outMax):
+	return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
+
 def isHorizontal(p0, p1):
 	return p0.y-p1.y==0
 
